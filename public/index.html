@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>局域网端口扫描器</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <h1>局域网端口扫描器</h1>
+
+        <div class="controls">
+            <div class="input-group">
+                <label>起始 IP:</label>
+                <input type="text" id="ipStart" placeholder="192.168.1.1">
+            </div>
+            <div class="input-group">
+                <label>结束 IP:</label>
+                <input type="text" id="ipEnd" placeholder="192.168.1.254">
+            </div>
+
+            <div class="input-group full-width">
+                <label>扫描选项:</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="portMode" value="common" checked> 常用端口 (Top 100)</label>
+                    <label><input type="radio" name="portMode" value="all"> 全端口 (1-65535) <span class="warning">⚠️
+                            较慢</span></label>
+                    <label><input type="radio" name="portMode" value="custom"> 自定义端口</label>
+                </div>
+                <div id="customPortsDiv" style="display:none; margin-top: 5px;">
+                    <input type="text" id="ports" value="22,80,443,3000,8080,3306,5432"
+                        placeholder="例如: 80,443 或 1-1000">
+                </div>
+                <div style="margin-top: 8px;">
+                    <label><input type="checkbox" id="hostDiscovery" checked> <strong>智能主机发现</strong> (跳过不在线的主机)</label>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button id="scanBtn">开始扫描</button>
+                <button id="stopBtn" class="stop-btn" disabled>停止</button>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-text">
+                <span id="statusText">就绪</span>
+                <span id="progressText"></span>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div class="log-window" id="logWindow"></div>
+
+        <div class="results-section">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="搜索结果 (IP 或 端口)...">
+            </div>
+
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>IP 地址</th>
+                        <th>端口</th>
+                        <th>状态</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody">
+                    <tr>
+                        <td colspan="3" style="text-align:center; color: #888;">输入范围并点击开始扫描</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div id="paginationControls" class="pagination-controls" style="display: none;">
+                <button id="prevPage" disabled>上一页</button>
+                <span id="pageInfo">第 1 页</span>
+                <button id="nextPage" disabled>下一页</button>
+
+                <div class="jump-box">
+                    <input type="number" id="jumpPageInput" min="1" placeholder="页码">
+                    <button id="jumpPageBtn">跳转</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
