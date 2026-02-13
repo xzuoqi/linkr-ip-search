@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         logWindow.appendChild(div);
         logWindow.scrollTop = logWindow.scrollHeight;
     }
-    
+
     // UI Elements
     const scanBtn = document.getElementById('scanBtn');
     const stopBtn = document.getElementById('stopBtn');
@@ -108,8 +108,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 初始化 Socket.IO
     try {
-        socket = io();
-        
+        // PakePlus/Electron 离线环境适配：显式连接到本地后端
+        const API_BASE = 'http://localhost:3000';
+        socket = io(API_BASE);
+
         // Socket 事件
         socket.on('connect', () => {
             statusText.textContent = '已连接到服务器';
@@ -191,7 +193,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 加载本地 IP 以预填充范围
     try {
-        const res = await fetch('/api/local-ip');
+        const API_BASE = 'http://localhost:3000';
+        const res = await fetch(`${API_BASE}/api/local-ip`);
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         const ips = await res.json();
         if (ips.length > 0) {
