@@ -65,9 +65,16 @@ let socket = null;
 let isScanning = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 初始化 Socket.IO
-    socket = io();
-
+    // Helper to log messages
+    function log(msg) {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        logWindow.appendChild(div);
+        logWindow.scrollTop = logWindow.scrollHeight;
+    }
+    
+    // UI Elements
     const scanBtn = document.getElementById('scanBtn');
     const stopBtn = document.getElementById('stopBtn');
     stopBtn.style.display = 'none';
@@ -99,169 +106,93 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // Helper to log messages
-    function log(msg) {
-        const div = document.createElement('div');
-        div.className = 'log-entry';
-        div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        logWindow.appendChild(div);
-        logWindow.scrollTop = logWindow.scrollHeight;
-    }
+    // 初始化 Socket.IO
+    try {
+        socket = io();
+        
+        // Socket 事件
+        socket.on('connect', () => {
+            statusText.textContent = '已连接到服务器';
+            statusText.style.color = 'green';
+        });
 
-    // Render Function
-    function renderResults() {
-        const totalItems = filteredResults.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        socket.on('connect_error', (error) => {
+            statusText.textContent = '连接后端失败 - 演示模式 (功能受限)';
+            statusText.style.color = 'orange';
+            console.warn("Socket connection error:", error);
+        });
 
-        // 如果超出范围则调整当前页
-        if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
-        if (currentPage < 1) currentPage = 1;
+        socket.on('disconnect', () => {
+            statusText.textContent = '与服务器断开连接';
+            statusText.style.color = 'red';
+        });
 
-        const start = (currentPage - 1) * itemsPerPage;
-        const end = start + itemsPerPage;
-        const pageData = filteredResults.slice(start, end);
+        socket.on('log', (data) => {
+            log(data.message);
+        });
 
-        // 更新表格
-        if (pageData.length === 0) {
-            if (isScanning && currentResults.length === 0) {
-                resultsBody.innerHTML = '<tr><td colspan="3" style="text-align:center">正在扫描...</td></tr>';
-            } else if (currentResults.length === 0) {
-                resultsBody.innerHTML = '<tr><td colspan="3" style="text-align:center">未发现开放端口</td></tr>';
+        socket.on('host-found', (data) => {
+            log(`发现主机: ${data.host}`);
+        });
+
+        socket.on('progress', (data) => {
+            const percent = Math.round((data.current / data.total) * 100);
+            progressBar.style.width = `${percent}%`;
+            progressText.textContent = `${percent}% (${data.phase === 'discovery' ? '发现主机' : '扫描端口'})`;
+
+            if (data.phase === 'discovery') {
+                statusText.textContent = `正在探测主机: ${data.current}/${data.total}`;
             } else {
-                resultsBody.innerHTML = '<tr><td colspan="3" style="text-align:center">未找到匹配项</td></tr>';
+                statusText.textContent = `正在扫描端口: ${data.current}/${data.total}`;
             }
-        } else {
-            resultsBody.innerHTML = pageData.map(item => `
-                <tr>
-                    <td>${item.host}</td>
-                    <td>${item.port}</td>
-                    <td><span class="status-open">开放</span></td>
-                </tr>
-            `).join('');
-        }
+        });
 
-        // 更新分页控件
-        if (totalItems <= itemsPerPage) {
-            paginationControls.style.display = 'none';
-        } else {
-            paginationControls.style.display = 'flex';
-            pageInfo.textContent = `第 ${currentPage} / ${totalPages || 1} 页`;
-            prevPageBtn.disabled = currentPage === 1;
-            nextPageBtn.disabled = currentPage === totalPages;
+        socket.on('scan-result', (result) => {
+            currentResults.push(result);
 
-            // 更新跳转输入框的 max 属性
-            jumpPageInput.max = totalPages;
-            jumpPageInput.value = currentPage;
-        }
-    }
-
-    // 跳转函数
-    function jumpToPage() {
-        const page = parseInt(jumpPageInput.value);
-        const totalPages = Math.ceil(filteredResults.length / itemsPerPage);
-
-        if (isNaN(page) || page < 1 || page > totalPages) {
-            alert(`请输入有效的页码 (1-${totalPages})`);
-            return;
-        }
-
-        currentPage = page;
-        renderResults();
-    }
-
-    // 分页事件监听器
-    prevPageBtn.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            renderResults();
-        }
-    });
-
-    nextPageBtn.addEventListener('click', () => {
-        const totalPages = Math.ceil(filteredResults.length / itemsPerPage);
-        if (currentPage < totalPages) {
-            currentPage++;
-            renderResults();
-        }
-    });
-
-    jumpPageBtn.addEventListener('click', jumpToPage);
-
-    jumpPageInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            jumpToPage();
-        }
-    });
-
-    // Socket 事件
-    socket.on('connect', () => {
-        statusText.textContent = '已连接到服务器';
-    });
-
-    socket.on('disconnect', () => {
-        statusText.textContent = '与服务器断开连接';
-    });
-
-    socket.on('log', (data) => {
-        log(data.message);
-    });
-
-    socket.on('host-found', (data) => {
-        log(`发现主机: ${data.host}`);
-    });
-
-    socket.on('progress', (data) => {
-        const percent = Math.round((data.current / data.total) * 100);
-        progressBar.style.width = `${percent}%`;
-        progressText.textContent = `${percent}% (${data.phase === 'discovery' ? '发现主机' : '扫描端口'})`;
-
-        if (data.phase === 'discovery') {
-            statusText.textContent = `正在探测主机: ${data.current}/${data.total}`;
-        } else {
-            statusText.textContent = `正在扫描端口: ${data.current}/${data.total}`;
-        }
-    });
-
-    socket.on('scan-result', (result) => {
-        currentResults.push(result);
-
-        // 应用过滤器（如果有）
-        const query = searchInput.value.toLowerCase();
-        if (!query || result.host.includes(query) || result.port.toString().includes(query)) {
-            if (!query) {
-                filteredResults = currentResults; // Optimization
-            } else {
-                filteredResults.push(result);
+            // 应用过滤器（如果有）
+            const query = searchInput.value.toLowerCase();
+            if (!query || result.host.includes(query) || result.port.toString().includes(query)) {
+                if (!query) {
+                    filteredResults = currentResults; // Optimization
+                } else {
+                    filteredResults.push(result);
+                }
+                renderResults();
             }
+        });
+
+        socket.on('scan-complete', (data) => {
+            isScanning = false;
+            scanBtn.disabled = false;
+            stopBtn.disabled = true;
+            stopBtn.style.display = 'none';
+            statusText.textContent = '';
+            progressText.textContent = '';
+            log('扫描已完成。');
+            renderResults(); // 确保最终状态
+        });
+
+        socket.on('scan-stopped', () => {
+            isScanning = false;
+            scanBtn.disabled = false;
+            stopBtn.disabled = true;
+            stopBtn.style.display = 'none';
+            statusText.textContent = '';
+            progressText.textContent = '';
+            log('扫描已停止。');
             renderResults();
-        }
-    });
-
-    socket.on('scan-complete', (data) => {
-        isScanning = false;
-        scanBtn.disabled = false;
-        stopBtn.disabled = true;
-        stopBtn.style.display = 'none';
-        statusText.textContent = '';
-        progressText.textContent = '';
-        log('扫描已完成。');
-        renderResults(); // 确保最终状态
-    });
-
-    socket.on('scan-stopped', () => {
-        isScanning = false;
-        scanBtn.disabled = false;
-        stopBtn.disabled = true;
-        stopBtn.style.display = 'none';
-        statusText.textContent = '';
-        progressText.textContent = '';
-        log('扫描已停止。');
-        renderResults();
-    });
+        });
+    } catch (e) {
+        console.error("Socket.io initialization failed:", e);
+        statusText.textContent = 'Socket.io 初始化失败';
+        statusText.style.color = 'red';
+    }
 
     // 加载本地 IP 以预填充范围
     try {
         const res = await fetch('/api/local-ip');
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         const ips = await res.json();
         if (ips.length > 0) {
             const lanIp = ips.find(i => i.ip.startsWith('192') || i.ip.startsWith('10') || i.ip.startsWith('172')) || ips[0];
@@ -274,11 +205,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             log(`检测到本地 IP: ${lanIp.ip} (掩码: ${lanIp.netmask})`);
         }
     } catch (e) {
-        console.error("Failed to load local IP", e);
+        console.warn("Failed to load local IP (Backend likely not connected):", e);
+        // Fallback for demo mode
+        if (!document.getElementById('ipStart').value) {
+            document.getElementById('ipStart').value = '192.168.1.1';
+            document.getElementById('ipEnd').value = '192.168.1.254';
+            log('无法获取本地 IP (后端未连接)，使用默认范围演示。');
+        }
     }
 
     // 开始扫描
     scanBtn.addEventListener('click', () => {
+        if (!socket || !socket.connected) {
+            alert("错误: 未连接到后端服务器。\n\n此应用是一个局域网扫描器，必须在本地运行 Node.js 后端才能执行扫描。\n\n请克隆仓库并在本地运行 `npm start`。");
+            return;
+        }
+
         if (isScanning) return;
 
         const start = document.getElementById('ipStart').value;
